@@ -1,7 +1,5 @@
 var express = require("express");
 const mongoose = require("mongoose");
-const Calendar = require("./model/calendar");
-const Room = require("./model/room");
 require("dotenv").config();
 const cors = require("cors");
 var app = express();
@@ -9,7 +7,8 @@ var app = express();
 const roomRouter = require("./routes/roomRouter");
 const userRouter = require("./routes/userRouter");
 const calendarRouter = require("./routes/calendarRouter");
-const eventRouter = require("./routes/eventRouter");
+const eventRouter = require("./routes/bookingEventRouter");
+const hotelRouter = require("./routes/hotelRouter");
 const port = process.env.PORT || 3000;
 // Implement Body Parser
 const bodyParser = require("body-parser");
@@ -44,7 +43,8 @@ Connect();
 app.use("/api/calendar", calendarRouter);
 app.use("/api/user", userRouter);
 app.use("/api/room", roomRouter);
-app.use("/api/event", eventRouter);
+app.use("/api/bookingEvent", eventRouter);
+app.use("/api/hotel", hotelRouter);
 
 // app.use("/api/roombooking", roombookingRouter);
 

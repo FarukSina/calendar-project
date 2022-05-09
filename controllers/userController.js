@@ -1,4 +1,5 @@
 const User = require("../model/user");
+const { uuid } = require("uuidv4");
 
 const getAllUsers = async (req, res) => {
   User.find({}, (err, users) => {
@@ -20,7 +21,12 @@ const getUser = async (req, res, next) => {
 };
 
 const createUser = async (req, res) => {
-  const user = new User(req.body);
+  const randomId = uuid();
+  const body = {
+    ...req.body,
+    clientId: randomId,
+  };
+  const user = new User(body);
   try {
     const result = await user.save();
     res.send(result);
