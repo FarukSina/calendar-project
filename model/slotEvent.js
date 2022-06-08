@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const bookingEventSchema = new mongoose.Schema({
+const slotEventSchema = new mongoose.Schema({
   summary: {
     type: String,
     required: true,
@@ -9,21 +9,9 @@ const bookingEventSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  numberOfAttendees: {
-    type: Number,
-    required: true,
-  },
-  numberOfAdults: {
-    type: Number,
-    required: true,
-  },
-  numberOfChildren: {
-    type: Number,
-    required: true,
-  },
-  roomId: {
+  slotId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Room",
+    ref: "SlotBasedInventory",
     required: false,
   },
   userId: {
@@ -58,11 +46,11 @@ const bookingEventSchema = new mongoose.Schema({
   },
 });
 
-bookingEventSchema.index(
-  { roomId: 1, startDate: 1, endDate: 1 },
+slotEventSchema.index(
+  { slotId: 1, startDate: 1, endDate: 1 },
   { unique: true }
 );
 
-const BookingEvent = mongoose.model("BookingEvent", bookingEventSchema);
+const SlotEvent = mongoose.model("SlotEvent", slotEventSchema);
 
-module.exports = BookingEvent;
+module.exports = SlotEvent;

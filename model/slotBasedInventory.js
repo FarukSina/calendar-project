@@ -1,12 +1,16 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const RoomSchema = new Schema({
-  roomName: {
+const SlotBasedInventorySchema = new Schema({
+  slotName: {
     type: String,
     required: true,
   },
-  roomNumber: {
+  slotNumber: {
+    type: Number,
+    required: true,
+  },
+  duration: {
     type: Number,
     required: true,
   },
@@ -18,17 +22,13 @@ const RoomSchema = new Schema({
     type: String,
     required: true,
   },
-  numberOfBeds: {
-    type: Number,
-    required: true,
-    default: 1,
-  },
   features: [
     {
       type: String,
-      required: true,
+      required: false,
     },
   ],
+  slotTimes: [],
   bookDates: [
     {
       startDate: {
@@ -47,6 +47,10 @@ const RoomSchema = new Schema({
         type: Boolean,
         required: false,
       },
+      isTaken: {
+        type: Boolean,
+        required: false,
+      },
       userId: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -55,8 +59,14 @@ const RoomSchema = new Schema({
   ],
 });
 
-RoomSchema.index({ calendarId: 1, roomNumber: 1 }, { unique: true });
+SlotBasedInventorySchema.index(
+  { calendarId: 1, slotNumber: 1 },
+  { unique: true }
+);
 
-const Room = mongoose.model("Room", RoomSchema);
+const SlotBasedInventory = mongoose.model(
+  "SlotBasedInventory",
+  SlotBasedInventorySchema
+);
 
-module.exports = Room;
+module.exports = SlotBasedInventory;

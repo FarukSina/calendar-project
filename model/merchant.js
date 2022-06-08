@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-const HotelSchema = new Schema({
-  hotelName: {
+const MerchantSchema = new Schema({
+  merchantName: {
     type: String,
     unique: true,
     required: true,
@@ -15,6 +15,6 @@ const HotelSchema = new Schema({
   ],
 });
 
-const Hotel = mongoose.model("Hotel", HotelSchema);
+const Merchant = mongoose.model("Merchant", MerchantSchema);
 
-module.exports = Hotel;
+module.exports = Merchant;

@@ -7,15 +7,21 @@ const CalendarSchema = new Schema({
     unique: true,
     required: true,
   },
-  hotelId: {
+  merchantId: {
     type: Schema.Types.ObjectId,
-    ref: "Hotel",
+    ref: "Merchant",
     required: true,
   },
   roomIds: [
     {
       type: Schema.Types.ObjectId,
       ref: "Room",
+    },
+  ],
+  slotBasedInventoryIds: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "SlotBasedInventory",
     },
   ],
 });

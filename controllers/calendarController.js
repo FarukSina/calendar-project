@@ -1,5 +1,5 @@
 const Calendar = require("../model/calendar");
-const Hotel = require("../model/hotel");
+const Merchant = require("../model/merchant");
 const { getAllAvailableRoomsByDatesFunc } = require("./roomController");
 
 // Calendar Endpoints
@@ -27,15 +27,15 @@ const createCalendar = async (req, res) => {
   const calendar = new Calendar(req.body);
   try {
     const result = await calendar.save();
-    let updateHotel = [];
-    if (result && result.hotelId) {
-      updateHotel = await Hotel.findOneAndUpdate(
-        { _id: result.hotelId },
+    let updateMerchant = [];
+    if (result && result.merchantId) {
+      updateMerchant = await Merchant.findOneAndUpdate(
+        { _id: result.merchantId },
         { $push: { calendarIds: result._id } },
         { new: true, useFindAndModify: false }
       );
     }
-    res.send({ result, updateHotel });
+    res.send({ result, updateMerchant });
   } catch (error) {
     res.status(400).send(`Error: ${error}`);
   }
@@ -75,8 +75,8 @@ const deleteCalendar = async (req, res, next) => {
 
 const getAllCalendarsByHotel = async (req, res, next) => {
   try {
-    const { hotelId } = req.query;
-    const calendar = await Calendar.find({ hotelId });
+    const { merchantId } = req.query;
+    const calendar = await Calendar.find({ merchantId });
     res.status(200).json(calendar);
   } catch (error) {
     next(error);
@@ -89,38 +89,40 @@ const getInventoryRoomsByCalendar = async (req, res, next) => {
     const { calendarId, startDate, endDate } = req.body;
     console.log("req.body", req.body);
     const calendar = await Calendar.findById({ _id: calendarId });
-    const hotelName = await Hotel.findById({
-      _id: calendar.hotelId,
+    const hotelName = await Merchant.findById({
+      _id: calendar.merchantId,
     });
-    const quantityOfRoom = calendar && calendar.roomIds?.length;
+    const roomQuantitiesOfCalendar = calendar && calendar.roomIds?.length;
     const roomsAvailableByCalendar = await getAllAvailableRoomsByDatesFunc(
       calendarId,
       startDate,
       endDate
     );
+
+    const availableRooms =
+      roomQuantitiesOfCalendar &&
+      roomsAvailableByCalendar &&
+      roomsAvailableByCalendar.length;
+
+    const takenRooms = roomQuantitiesOfCalendar - availableRooms;
+
     console.log(
-      "result",
-      calendar.hotelId,
-      quantityOfRoom,
-      roomsAvailableByCalendar,
-      hotelName
+      "takenRooms",
+      takenRooms,
+      roomQuantitiesOfCalendar,
+      availableRooms
     );
 
-    const roomsAvailable =
-      quantityOfRoom &&
-      roomsAvailableByCalendar &&
-      quantityOfRoom - roomsAvailableByCalendar.length;
-
-    console.log(roomsAvailableByCalendar.length / quantityOfRoom);
-    if (roomsAvailableByCalendar.length / quantityOfRoom <= 0.2) {
+    console.log(takenRooms / roomQuantitiesOfCalendar);
+    if (takenRooms / roomQuantitiesOfCalendar <= 0.2) {
       colorCode = "#34deeb";
-    } else if (roomsAvailableByCalendar.length / quantityOfRoom <= 0.35) {
+    } else if (takenRooms / roomQuantitiesOfCalendar <= 0.35) {
       colorCode = "#34eb71";
-    } else if (roomsAvailableByCalendar.length / quantityOfRoom <= 0.5) {
+    } else if (takenRooms / roomQuantitiesOfCalendar <= 0.5) {
       colorCode = "#dfeb34";
-    } else if (roomsAvailableByCalendar.length / quantityOfRoom <= 0.65) {
+    } else if (takenRooms / roomQuantitiesOfCalendar <= 0.65) {
       colorCode = "#eb8f34";
-    } else if (roomsAvailableByCalendar.length / quantityOfRoom <= 0.85) {
+    } else if (takenRooms / roomQuantitiesOfCalendar <= 0.85) {
       colorCode = "#eb6834";
     } else {
       colorCode = "#eb3434";
@@ -129,10 +131,12 @@ const getInventoryRoomsByCalendar = async (req, res, next) => {
     res.status(200).json({
       calendarName: calendar.calendarName,
       hotelName: hotelName.hotelName,
-      quantityOfRoom,
-      roomsAvailable: roomsAvailable,
-      takenRooms: roomsAvailableByCalendar.length,
+      roomQuantitiesOfCalendar,
+      availableRooms: availableRooms,
+      takenRooms: takenRooms,
       colorCode: colorCode,
+      startDate: startDate,
+      endDate: endDate,
     });
   } catch (error) {
     next(error);

@@ -1,5 +1,6 @@
 const BookingEvent = require("../model/bookingEvent");
 const Room = require("../model/room");
+const SlotEvent = require("../model/slotEvent");
 const getAllBookingEvents = async (req, res) => {
   BookingEvent.find({}, (err, bookingEvents) => {
     if (err) {
@@ -41,7 +42,6 @@ const createBookingEvent = async (req, res, next) => {
       endDate: new Date(endDate),
       timeZone: req.body.timeZone,
     };
-    console.log("bookDates", bookDates, new Date(startDate), startDate);
     const newStartDate = new Date(bookDates.startDate).getTime();
     const newEndDate = new Date(bookDates.endDate).getTime();
     if (newStartDate > newEndDate) {
@@ -49,7 +49,6 @@ const createBookingEvent = async (req, res, next) => {
       return;
     }
     const selectedRoom = await Room.findById(roomId);
-    console.log("selectedRoom", selectedRoom);
     let roomStatus = false;
     selectedRoom &&
       selectedRoom.bookDates.length > 0 &&
@@ -74,12 +73,11 @@ const createBookingEvent = async (req, res, next) => {
 
     // const bookingEvent = new bookingEvent(req.body);
     const result = await bookingEvent.save();
-    console.log("result2", result, roomId);
 
     bookDates["eId"] = result._id;
     bookDates["isBooked"] = false;
+    bookDates["userId"] = result.userId;
 
-    console.log("bookDates2", bookDates);
     // check if the dates are taken
 
     const room = await Room.findOneAndUpdate(
@@ -89,16 +87,16 @@ const createBookingEvent = async (req, res, next) => {
       }
     );
 
-    console.log("room", room);
-
     if (!room) {
       res.status(404).send("Room not found");
     } else {
+      const sessionTime = new Date(Date.now() + 15 * 60 * 1000);
+      console.log("\n\n result213213312 \n \n ", result);
       res.status(200).json({
         message: "Room was updated successfully",
         status: "success",
         room: room,
-        event: result,
+        event: { ...result?._doc, sessionTime },
       });
       return;
     }
@@ -111,6 +109,19 @@ const createBookingEvent = async (req, res, next) => {
 const bookTheRoomEvent = async (req, res, next) => {
   try {
     const { eId, userId } = req.body;
+    let roomAlreadyBooked = false;
+    const bookingEvent = await BookingEvent.findOne({
+      _id: eId,
+      userId: userId,
+    });
+    console.log("bookingEvent", bookingEvent.isBooked);
+    if (bookingEvent.isBooked) {
+      roomAlreadyBooked = true;
+    }
+    if (roomAlreadyBooked) {
+      console.log("roomAlreadyBooked", roomAlreadyBooked);
+      return res.status(400).send("Room is already booked");
+    }
     const bookEvent = await BookingEvent.findOneAndUpdate(
       { _id: eId, userId: userId },
       { $set: { isBooked: true } }
@@ -167,15 +178,19 @@ const updateBookingEvent = async (req, res, next) => {
 
 const deleteBookingEvent = async (req, res, next) => {
   try {
-    const { id, roomId } = req.body;
-    const bookingEvent = await BookingEvent.deleteOne({ _id: id });
+    const { id, roomId, userId } = req.body;
+
+    const bookingEvent = await BookingEvent.deleteOne({
+      _id: id,
+      userId: userId,
+    });
     // const roomBookingEvent = await Room.findOneAndUpdate(
     //   { _id: roomId },
     //   { $pull: { bookDates: { eId: id } } }
     // );
     const roomBookingEvent = await Room.findOneAndUpdate(
       { _id: roomId },
-      { $pull: { bookDates: { eId: id } } },
+      { $pull: { bookDates: { eId: id, userId: userId } } },
       { safe: true, multi: false }
     );
 
@@ -191,6 +206,32 @@ const deleteBookingEvent = async (req, res, next) => {
     }
   } catch (error) {
     next(error);
+  }
+};
+
+const deleteBookingEventByCronJob = async (id, roomId) => {
+  try {
+    const bookingEvent = await BookingEvent.deleteOne({
+      _id: id,
+    });
+
+    const roomBookingEvent = await Room.findOneAndUpdate(
+      { _id: roomId },
+      { $pull: { bookDates: { eId: id } } },
+      { safe: true, multi: false }
+    );
+
+    if (bookingEvent && bookingEvent.deletedCount === 1) {
+      return {
+        message: "bookingEvent was deleted successfully",
+        bookingEventId: id,
+        roomId: roomBookingEvent._id,
+      };
+    } else {
+      return `bookingEvent not found for the given id: ${id}`;
+    }
+  } catch (error) {
+    return error;
   }
 };
 
@@ -224,6 +265,29 @@ const getAllBookingEventsByUserId = async (req, res, next) => {
   }
 };
 
+const updateSessionTime = async (req, res, next) => {
+  try {
+    const { eId, userId, roomId } = req.body;
+    currentTime = Date.now();
+
+    const bookingEvent = await BookingEvent.findOneAndUpdate(
+      { _id: eId, userId: userId },
+      { updatedAt: currentTime },
+      { new: true }
+    );
+
+    console.log("updated bookingEvent", bookingEvent, currentTime);
+
+    const sessionTime = new Date(currentTime + 15 * 60 * 1000);
+    res.status(200).send({
+      bookingEvent: bookingEvent,
+      sessionTimeUpdated: sessionTime,
+    });
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
 module.exports = {
   getAllBookingEvents,
   getBookingEvent,
@@ -234,4 +298,6 @@ module.exports = {
   getBookingEventsByRoomId,
   getAllBookingEventsByUserId,
   bookTheRoomEvent,
+  deleteBookingEventByCronJob,
+  updateSessionTime,
 };

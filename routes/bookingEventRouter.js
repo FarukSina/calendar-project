@@ -11,6 +11,7 @@ const {
   getBookingEventsByRoomId,
   getAllBookingEventsByUserId,
   bookTheRoomEvent,
+  updateSessionTime,
 } = require("../controllers/bookingEventController");
 
 router.route("/getAllBookingEvents").get(getAllBookingEvents);
@@ -22,5 +23,6 @@ router.route("/createBookingEvent").post(createBookingEvent);
 router.route("/updateBookingEvent").post(updateBookingEvent);
 router.route("/bookTheRoomEvent").post(bookTheRoomEvent);
 router.route("/deleteBookingEvent").post(deleteBookingEvent);
+router.route("/updateSessionTime").post(updateSessionTime);
 
 module.exports = router;
