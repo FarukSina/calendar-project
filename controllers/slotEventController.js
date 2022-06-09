@@ -118,7 +118,9 @@ const createSlotEvent = async (req, res, next) => {
     }
     res.send(result);
   } catch (error) {
-    res.status(400).send(`Error: ${error}`);
+    res.status(400).json({
+      error: error.message,
+    });
   }
 };
 
@@ -129,6 +131,7 @@ const deleteSlotEvent = async (req, res, next) => {
     const slotEvent = await SlotEvent.deleteOne({
       _id: id,
       userId: userId,
+      slotId: slotId,
     });
     // const slotBasedInventoryEvent = await Room.findOneAndUpdate(
     //   { _id: slotId },
@@ -155,8 +158,36 @@ const deleteSlotEvent = async (req, res, next) => {
   }
 };
 
+const deleteSlotEventByCronJob = async (id, slotId) => {
+  try {
+    const slotEvent = await SlotEvent.deleteOne({
+      _id: id,
+    });
+
+    const slot = await Slot.findOneAndUpdate(
+      { _id: slotId },
+      { $pull: { bookDates: { eId: id } } },
+      { safe: true, multi: false }
+    );
+
+    if (slotEvent && slotEvent.deletedCount >= 1) {
+      console.log("slotEvent", slotEvent, slot);
+      return {
+        message: "slotEvent was deleted successfully",
+        slotEventId: id,
+        slotId: slot._id,
+      };
+    } else {
+      return `slotEvent not found for the given id: ${id}`;
+    }
+  } catch (error) {
+    return error;
+  }
+};
+
 module.exports = {
   createSlotEvent,
   getAllSlotEvents,
   deleteSlotEvent,
+  deleteSlotEventByCronJob,
 };

@@ -23,7 +23,7 @@ const getSlot = async (req, res, next) => {
 };
 
 const createSlot = async (req, res) => {
-  const duration = 30;
+  const duration = req.body.duration;
   const monthRange = 2;
   const month = new Date().getMonth();
   const year = new Date().getFullYear();
@@ -113,10 +113,11 @@ const createSlot = async (req, res) => {
   ];
 
   for (let i = month; i < month + monthRange; i++) {
-    let dates = getDaysInMonth(month, year);
+    console.log("i33", i, month, monthRange);
+    let dates = getDaysInMonth(i, year);
     allDatesInMonth.push(...dates);
   }
-
+  //   console.log("allDatesInMonth", allDatesInMonth);
   allDatesInMonth.forEach((date) => {
     const tempRule = rules.find(
       (rule) =>
@@ -271,11 +272,25 @@ const freeBusySlot = async (req, res, next) => {
         return day;
       });
 
-      console.log("filteredResults", filteredResults);
-      //   freeBusySlot = [...filteredResults];
-      res.send(filteredResults);
+      const reducedResults = filteredResults.reduce((acc, curr) => {
+        const newDate = dayjs(curr.date).format("YYYY-MM-DD");
+        if (curr.spots.length > 0) {
+          acc[newDate] = curr.spots;
+        }
+        return acc;
+      }, []);
+      console.log("reducedResults", reducedResults);
+      res.status(200).json({ ...reducedResults, duration: result.duration });
     } else {
-      res.send([]);
+      const reducedSlotTimes = result.slotTimes.reduce((acc, curr) => {
+        const newDate = dayjs(curr.date).format("YYYY-MM-DD");
+        if (curr.spots.length > 0) {
+          acc[newDate] = curr.spots;
+        }
+        return acc;
+      }, []);
+      console.log("reducedSlotTimes", reducedSlotTimes);
+      res.status(200).json({ ...reducedSlotTimes, duration: result.duration });
     }
   } catch (error) {
     next(error);

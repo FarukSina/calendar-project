@@ -14,11 +14,16 @@ const slotRouter = require("./routes/slotBasedInventoryRouter");
 const slotEventRouter = require("./routes/slotEventRouter");
 const port = process.env.PORT || 3000;
 const BookingEvent = require("./model/bookingEvent");
+const SlotEvent = require("./model/slotEvent");
+
 // Implement Body Parser
 const bodyParser = require("body-parser");
 const {
   deleteBookingEventByCronJob,
 } = require("./controllers/bookingEventController");
+const {
+  deleteSlotEventByCronJob,
+} = require("./controllers/slotEventController");
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -48,7 +53,8 @@ Connect();
 // Cron Job
 
 cron.schedule("* * * * *", async () => {
-  let deleteResponse = null;
+  console.log("Running Cron Job");
+
   const currentTime = Date.now();
   const findAllBookingEvents = async () => {
     try {
@@ -71,10 +77,39 @@ cron.schedule("* * * * *", async () => {
   if (filteredResultByDate && filteredResultByDate.length > 0) {
     filteredResultByDate.map(async (bookingEvent) => {
       const { _id, roomId } = bookingEvent;
-      deleteResponse = await deleteBookingEventByCronJob(_id, roomId);
+      await deleteBookingEventByCronJob(_id, roomId).then((response) => {
+        console.log("deleteResponse", response);
+      });
     });
   }
-  console.log("running a task every minute", deleteResponse);
+
+  const findAllSlotEvents = async () => {
+    try {
+      let slotEvents = await SlotEvent.find({
+        isBooked: false,
+      });
+      return slotEvents;
+    } catch (error) {
+      console.log(error.stack);
+    }
+  };
+
+  const slotResults = await findAllSlotEvents();
+  const filteredSlotResultByDate = slotResults.filter((slotEvent) => {
+    if (currentTime - slotEvent.updatedAt >= 900000) {
+      return slotEvent;
+    } else {
+      return null;
+    }
+  });
+  if (filteredSlotResultByDate && filteredSlotResultByDate.length > 0) {
+    filteredSlotResultByDate.map(async (slotEvent) => {
+      const { _id, slotId } = slotEvent;
+      await deleteSlotEventByCronJob(_id, slotId).then((res) =>
+        console.log("slotDeleteResponse", res)
+      );
+    });
+  }
 });
 
 // Endpoints
