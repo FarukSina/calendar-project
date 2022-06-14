@@ -23,6 +23,18 @@ const getSlot = async (req, res, next) => {
 };
 
 const createSlot = async (req, res) => {
+  console.log("req.body", req.body[0]);
+  const { weeklyDays, duration2, timeZone, calendarId, slotNumber, slotName } =
+    req.body;
+  console.log(
+    "req.body",
+    weeklyDays,
+    duration2,
+    timeZone,
+    calendarId,
+    slotNumber,
+    slotName
+  );
   const duration = req.body.duration;
   const monthRange = 2;
   const month = new Date().getMonth();
@@ -66,7 +78,7 @@ const createSlot = async (req, res) => {
       intervals: [
         {
           from: "12:00",
-          to: "20:00",
+          to: "18:00",
         },
       ],
     },
@@ -76,7 +88,7 @@ const createSlot = async (req, res) => {
       intervals: [
         {
           from: "12:00",
-          to: "20:00",
+          to: "18:00",
         },
       ],
     },
@@ -141,10 +153,9 @@ const createSlot = async (req, res) => {
         testDate
       );
       let spots = [];
-      for (let i = tempFromToMinutes; i <= tempToMinutes; i += duration) {
+      for (let i = tempFromToMinutes; i < tempToMinutes; i += duration) {
         const tempStartDate = new Date(date.setHours(0, 0, 0, 0));
         const tempEndDate = new Date(date.setHours(0, 0, 0, 0));
-
         console.log("tempStartDate", tempStartDate);
         tempStartDate.setMinutes(i);
         console.log("tempDate123", tempStartDate);

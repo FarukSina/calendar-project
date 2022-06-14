@@ -28,6 +28,11 @@ const createSlotEvent = async (req, res, next) => {
     };
     const newStartDate = new Date(bookDates.startDate).getTime();
     const newEndDate = new Date(bookDates.endDate).getTime();
+    const currentTime = new Date().getTime();
+    if (newStartDate < currentTime) {
+      res.status(400).send("Slot can not be before current time");
+      return;
+    }
     if (newStartDate > newEndDate) {
       res.status(400).send("Start date should be less than end date");
       return;
@@ -35,7 +40,6 @@ const createSlotEvent = async (req, res, next) => {
     const selectedSlot = await Slot.findById(slotId);
     let isDateTaken = false;
     let isSlotMatch = false;
-    let duration = 0;
 
     selectedSlot &&
       selectedSlot.bookDates.length > 0 &&
@@ -133,7 +137,7 @@ const deleteSlotEvent = async (req, res, next) => {
       userId: userId,
       slotId: slotId,
     });
-    // const slotBasedInventoryEvent = await Room.findOneAndUpdate(
+    // const slotBasedInventoryEvent = await Slot.findOneAndUpdate(
     //   { _id: slotId },
     //   { $pull: { bookDates: { eId: id } } }
     // );
@@ -185,9 +189,83 @@ const deleteSlotEventByCronJob = async (id, slotId) => {
   }
 };
 
+const updateSessionTime = async (req, res, next) => {
+  try {
+    const { eId, userId, slotId } = req.body;
+    currentTime = Date.now();
+
+    const slotEvent = await SlotEvent.findOneAndUpdate(
+      { _id: eId, userId: userId },
+      { updatedAt: currentTime },
+      { new: true }
+    );
+
+    console.log("updated slotEvent", slotEvent, currentTime);
+
+    const sessionTime = new Date(currentTime + 15 * 60 * 1000);
+    res.status(200).send({
+      slotEvent: slotEvent,
+      sessionTimeUpdated: sessionTime,
+    });
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
+const bookTheSlotEvent = async (req, res, next) => {
+  try {
+    const { eId, userId } = req.body;
+    let slotAlreadyBooked = false;
+    const slotEvent = await SlotEvent.findOne({
+      _id: eId,
+      userId: userId,
+    });
+    console.log("slotEvent", slotEvent.isBooked);
+    if (slotEvent.isBooked) {
+      slotAlreadyBooked = true;
+    }
+    if (slotAlreadyBooked) {
+      console.log("slotAlreadyBooked", slotAlreadyBooked);
+      return res.status(400).send("Slot is already booked");
+    }
+    const bookSlotEvent = await SlotEvent.findOneAndUpdate(
+      { _id: eId, userId: userId },
+      { $set: { isBooked: true } },
+      { new: true }
+    );
+    console.log("bookSlotEvent", bookSlotEvent);
+    const slot = await Slot.findOneAndUpdate(
+      { "bookDates.eId": eId },
+      {
+        $set: {
+          "bookDates.$.isBooked": true,
+        },
+      },
+      { new: true }
+    );
+
+    if (!slot || !bookSlotEvent) {
+      res.status(404).send("Slot or Event not found");
+    } else {
+      res.status(200).json({
+        message: "Slot and Event booked successfully",
+        status: "success",
+        slot: slot,
+        event: bookSlotEvent,
+      });
+      return;
+    }
+    res.send(result);
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
 module.exports = {
   createSlotEvent,
   getAllSlotEvents,
   deleteSlotEvent,
   deleteSlotEventByCronJob,
+  updateSessionTime,
+  bookTheSlotEvent,
 };

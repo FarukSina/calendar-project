@@ -44,6 +44,11 @@ const createBookingEvent = async (req, res, next) => {
     };
     const newStartDate = new Date(bookDates.startDate).getTime();
     const newEndDate = new Date(bookDates.endDate).getTime();
+    const currentTime = new Date().getTime();
+    if (newStartDate < currentTime) {
+      res.status(400).send("Slot can not be before current time");
+      return;
+    }
     if (newStartDate > newEndDate) {
       res.status(400).send("Start date should be less than end date");
       return;

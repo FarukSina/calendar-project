@@ -1,6 +1,7 @@
 const Calendar = require("../model/calendar");
 const Merchant = require("../model/merchant");
 const { getAllAvailableRoomsByDatesFunc } = require("./roomController");
+var fs = require("fs");
 
 // Calendar Endpoints
 
@@ -143,6 +144,14 @@ const getInventoryRoomsByCalendar = async (req, res, next) => {
   }
 };
 
+const getTimeZones = async (req, res, next) => {
+  try {
+    const timeZones = await fs.readFileSync("./json/timezones.json", "utf8");
+    res.status(200).send(timeZones);
+  } catch (error) {
+    next(error);
+  }
+};
 module.exports = {
   getAllCalendars,
   getCalendar,
@@ -151,4 +160,5 @@ module.exports = {
   deleteCalendar,
   getAllCalendarsByHotel,
   getInventoryRoomsByCalendar,
+  getTimeZones,
 };
