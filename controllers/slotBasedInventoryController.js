@@ -2,7 +2,11 @@ const Calendar = require("../model/calendar");
 const Slot = require("../model/slotBasedInventory");
 const { getDaysInMonth } = require("../utils/utils");
 const dayjs = require("dayjs");
-//import dayjs from 'dayjs' // ES 2015
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 const getAllSlots = async (req, res) => {
   Slot.find({}, (err, slots) => {
     if (err) {
@@ -23,25 +27,23 @@ const getSlot = async (req, res, next) => {
 };
 
 const createSlot = async (req, res) => {
-  console.log("req.body", req.body[0]);
-  const { weeklyDays, duration2, timeZone, calendarId, slotNumber, slotName } =
-    req.body;
-  console.log(
-    "req.body",
+  console.log("req.body", req.body);
+  const {
     weeklyDays,
-    duration2,
+    duration,
     timeZone,
     calendarId,
     slotNumber,
-    slotName
-  );
-  const duration = req.body.duration;
-  const monthRange = 2;
+    slotName,
+    calendarDays,
+  } = req.body;
+  const monthRange = calendarDays / 30;
   const month = new Date().getMonth();
   const year = new Date().getFullYear();
   const allDatesInMonth = [];
   let days = [];
-  const rules = [
+  const rules = weeklyDays;
+  const rules2 = [
     {
       type: "wday",
       wday: "sunday",
@@ -123,13 +125,13 @@ const createSlot = async (req, res) => {
       date: "2021-09-17",
     },
   ];
-
+  console.log("rules", rules, rules2);
   for (let i = month; i < month + monthRange; i++) {
     console.log("i33", i, month, monthRange);
     let dates = getDaysInMonth(i, year);
     allDatesInMonth.push(...dates);
   }
-  //   console.log("allDatesInMonth", allDatesInMonth);
+  console.log("allDatesInMonth", allDatesInMonth);
   allDatesInMonth.forEach((date) => {
     const tempRule = rules.find(
       (rule) =>
@@ -137,7 +139,7 @@ const createSlot = async (req, res) => {
         date.toLocaleDateString("en-CA", { weekday: "long" }).toLowerCase()
     );
     if (tempRule) {
-      const { from, to } = tempRule?.intervals[0];
+      const { from, to } = tempRule?.intervals;
       const tempFrom = from.split(":");
       const tempTo = to.split(":");
       const tempFromToMinutes =
@@ -160,8 +162,10 @@ const createSlot = async (req, res) => {
         tempStartDate.setMinutes(i);
         console.log("tempDate123", tempStartDate);
         spots.push({
-          startTime: tempStartDate,
-          endTime: new Date(tempEndDate.setMinutes(i + duration)),
+          startTime: dayjs(tempStartDate).tz(timeZone).format(),
+          endTime: dayjs(new Date(tempEndDate.setMinutes(i + duration)))
+            .tz(timeZone)
+            .format(),
         });
       }
       days.push({
@@ -173,12 +177,15 @@ const createSlot = async (req, res) => {
 
   //   res.status(200).json({ ...days });
   try {
-    const ifCalendarAvailable = await Calendar.findById(req.body.calendarId);
+    const ifCalendarAvailable = await Calendar.findById(calendarId);
     console.log("ifCalendarAvailable", ifCalendarAvailable);
     if (ifCalendarAvailable) {
       const body = {
-        ...req.body,
-        calendarId: req.body.calendarId,
+        timeZone,
+        slotNumber,
+        slotName,
+        duration,
+        calendarId,
         slotTimes: days,
       };
       const slot = new Slot(body);
@@ -186,7 +193,7 @@ const createSlot = async (req, res) => {
       res.send(result);
       if (result) {
         const addSlotIdToCalendar = await Calendar.findByIdAndUpdate(
-          req.body.calendarId,
+          calendarId,
           { $push: { slotBasedInventoryIds: result._id } },
           { new: true, useFindAndModify: false }
         );
@@ -248,9 +255,21 @@ const updateSlot = async (req, res, next) => {
 const deleteSlot = async (req, res, next) => {
   try {
     const { id } = req.query;
-    const slot = await Slot.deleteOne({ _id: id });
+    const slot = await Slot.findOneAndDelete({ _id: id });
+    let deletedSlotIdFromCalendar;
+    if (slot) {
+      deletedSlotIdFromCalendar = await Calendar.findByIdAndUpdate(
+        slot.calendarId,
+        { $pull: { slotBasedInventoryIds: id } },
+        { new: true, useFindAndModify: false }
+      );
+    }
     console.log("slot", slot, id);
-    res.status(200).json({ message: "Slot was deleted successfully" });
+    res.status(200).json({
+      message: "Slot was deleted successfully",
+      slot,
+      deletedSlotIdFromCalendar,
+    });
   } catch (error) {
     next(error);
   }
@@ -260,7 +279,6 @@ const freeBusySlot = async (req, res, next) => {
   try {
     const { id } = req.query;
     const result = await Slot.findById(id);
-    console.log("result", result);
     if (result !== null && result.bookDates && result.bookDates.length > 0) {
       const dates = result.bookDates.map((bookDate) => {
         return {
@@ -268,14 +286,12 @@ const freeBusySlot = async (req, res, next) => {
           endDate: bookDate.endDate,
         };
       });
-      console.log("dates33", dates);
-
       const filteredResults = result.slotTimes.map((day) => {
         day.spots = day.spots.filter((spot) => {
           return !dates.some((date) => {
             return (
-              date.startDate.getTime() === spot.startTime.getTime() &&
-              date.endDate.getTime() === spot.endTime.getTime()
+              date.startDate.getTime() === new Date(spot.startTime).getTime() &&
+              date.endDate.getTime() === new Date(spot.endTime).getTime()
             );
           });
         });
@@ -290,8 +306,12 @@ const freeBusySlot = async (req, res, next) => {
         }
         return acc;
       }, []);
-      console.log("reducedResults", reducedResults);
-      res.status(200).json({ ...reducedResults, duration: result.duration });
+      res.status(200).json({
+        ...reducedResults,
+        duration: result.duration,
+        timeZone: result.timeZone,
+        calendarId: result.calendarId,
+      });
     } else {
       const reducedSlotTimes = result.slotTimes.reduce((acc, curr) => {
         const newDate = dayjs(curr.date).format("YYYY-MM-DD");
@@ -300,8 +320,12 @@ const freeBusySlot = async (req, res, next) => {
         }
         return acc;
       }, []);
-      console.log("reducedSlotTimes", reducedSlotTimes);
-      res.status(200).json({ ...reducedSlotTimes, duration: result.duration });
+      res.status(200).json({
+        ...reducedSlotTimes,
+        duration: result.duration,
+        timeZone: result.timeZone,
+        calendarId: result.calendarId,
+      });
     }
   } catch (error) {
     next(error);
@@ -321,10 +345,13 @@ const getAllSlotsByCalendar = async (req, res, next) => {
 };
 
 const getAllAvailableDatesBySlots = async (req, res, next) => {
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, calendarId, duration } = req.body;
 
   try {
-    const slots = await Slot.find({});
+    const slots = await Slot.find({
+      calendarId: calendarId,
+      duration: duration,
+    });
 
     console.log("slots", slots);
     const newStartDate = new Date(startDate).getTime();
@@ -335,13 +362,12 @@ const getAllAvailableDatesBySlots = async (req, res, next) => {
       slots.forEach((slot) => {
         if (slot.bookDates.length > 0) {
           const isBooked = slot.bookDates.some((bookDate) => {
-            const selectedStartDate = new Date(bookDate.startDate).getTime();
-            const selectedEndDate = new Date(bookDate.endDate).getTime();
-            console.log("taken", selectedStartDate, newStartDate);
+            const bookedStartDate = new Date(bookDate.startDate).getTime();
+            const bookedEndDate = new Date(bookDate.endDate).getTime();
+            console.log("taken", bookedStartDate, newStartDate);
             if (
-              (selectedStartDate >= newStartDate &&
-                selectedStartDate <= newEndDate) ||
-              (selectedEndDate >= newStartDate && selectedEndDate <= newEndDate)
+              bookedStartDate === newStartDate ||
+              bookedEndDate === newEndDate
             ) {
               console.log("dates are taken");
               return true;
@@ -383,13 +409,13 @@ const getAllAvailableSlotsByDateFunc = async (
       slots.forEach((slot) => {
         if (slot.bookDates.length > 0) {
           const isBooked = slot.bookDates.some((bookDate) => {
-            const selectedStartDate = new Date(bookDate.startDate).getTime();
-            const selectedEndDate = new Date(bookDate.endDate).getTime();
-            console.log("taken", selectedStartDate, newStartDate);
+            const bookedStartDate = new Date(bookDate.startDate).getTime();
+            const bookedEndDate = new Date(bookDate.endDate).getTime();
+            console.log("taken", bookedStartDate, newStartDate);
             if (
-              (selectedStartDate >= newStartDate &&
-                selectedStartDate <= newEndDate) ||
-              (selectedEndDate >= newStartDate && selectedEndDate <= newEndDate)
+              (bookedStartDate >= newStartDate &&
+                bookedStartDate <= newEndDate) ||
+              (bookedEndDate >= newStartDate && bookedEndDate <= newEndDate)
             ) {
               console.log("dates are taken");
               return true;
@@ -445,6 +471,50 @@ const getAllAvailableSlotsByDate = async (req, res, next) => {
       });
     console.log("tempDates", tempDates);
     res.send(tempDates);
+  } catch (error) {
+    res.status(400).send({ message: error.message });
+  }
+};
+
+const getAllAvailableSlotsByDates = async (req, res, next) => {
+  const { startDate, endDate } = req.body;
+
+  try {
+    const slots = await Slot.find({});
+    console.log("slots", slots);
+    const newStartDate = new Date(startDate).getTime();
+    const newEndDate = new Date(endDate).getTime();
+    let availableRooms = [];
+    slots &&
+      slots.length > 0 &&
+      slots.forEach((slot) => {
+        if (slot.bookDates.length > 0) {
+          const isBooked = slot.bookDates.some((bookDate) => {
+            const bookedStartDate = new Date(bookDate.startDate).getTime();
+            const bookedEndDate = new Date(bookDate.endDate).getTime();
+            console.log("taken", bookedStartDate, newStartDate);
+            if (
+              (bookedStartDate >= newStartDate &&
+                bookedStartDate <= newEndDate) ||
+              (bookedEndDate >= newStartDate && bookedEndDate <= newEndDate)
+            ) {
+              console.log("dates are taken");
+              return true;
+            } else {
+              return false;
+            }
+          });
+          console.log("isBooked", isBooked);
+          if (isBooked) {
+            return;
+          } else {
+            availableRooms.push(slot);
+          }
+        } else {
+          availableRooms.push(slot);
+        }
+      });
+    res.send(availableRooms);
   } catch (error) {
     res.status(400).send({ message: error.message });
   }

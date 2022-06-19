@@ -17,7 +17,7 @@ router.route("/getAllSlots").get(getAllSlots);
 router.route("/getSlot").get(getSlot);
 router.route("/freeBusySlot").get(freeBusySlot);
 router.route("/getAllSlotsByCalendar").get(getAllSlotsByCalendar);
-router.route("/getAllAvailableDatesBySlots").get(getAllAvailableDatesBySlots);
+router.route("/getAllAvailableDatesBySlots").post(getAllAvailableDatesBySlots);
 router.route("/createSlot").post(createSlot);
 router.route("/updateSlot").post(updateSlot);
 router.route("/deleteSlot").post(deleteSlot);

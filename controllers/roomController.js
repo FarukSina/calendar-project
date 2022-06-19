@@ -96,9 +96,21 @@ const updateRoom = async (req, res, next) => {
 const deleteRoom = async (req, res, next) => {
   try {
     const { id } = req.query;
-    const room = await Room.deleteOne({ _id: id });
+    let removeRoomIdFromCalendar;
+    const room = await Room.findOneAndDelete({ _id: id });
+    if (room) {
+      removeRoomIdFromCalendar = await Calendar.findByIdAndUpdate(
+        room.calendarId,
+        { $pull: { roomIds: id } },
+        { new: true, useFindAndModify: false }
+      );
+    }
     console.log("room", room, id);
-    res.status(200).json({ message: "Room was deleted successfully" });
+    res.status(200).json({
+      message: "Room was deleted successfully",
+      room,
+      removeRoomIdFromCalendar,
+    });
   } catch (error) {
     next(error);
   }

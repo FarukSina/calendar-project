@@ -54,7 +54,6 @@ Connect();
 
 cron.schedule("* * * * *", async () => {
   console.log("Running Cron Job");
-
   const currentTime = Date.now();
   const findAllBookingEvents = async () => {
     try {

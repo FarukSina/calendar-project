@@ -293,6 +293,33 @@ const updateSessionTime = async (req, res, next) => {
   }
 };
 
+const updateMultipleSessionTime = async (req, res, next) => {
+  try {
+    let bookingEvents = [];
+    const { eId, userId, roomId, eventsList } = req.body;
+    currentTime = Date.now();
+    if (eventsList && eventsList.length > 0) {
+      for (let i = 0; i < eventsList.length; i++) {
+        const bookingEvent = await BookingEvent.findOneAndUpdate(
+          { _id: eventsList[i].eId, userId: userId },
+          { updatedAt: currentTime },
+          { new: true }
+        );
+        bookingEvents.push({ ...bookingEvent });
+        console.log("updated bookingEvent", bookingEvent, currentTime);
+      }
+    }
+
+    const sessionTime = new Date(currentTime + 15 * 60 * 1000);
+    res.status(200).send({
+      bookingEvents: { ...bookingEvents },
+      sessionTimeUpdated: sessionTime,
+    });
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
 module.exports = {
   getAllBookingEvents,
   getBookingEvent,
@@ -305,4 +332,5 @@ module.exports = {
   bookTheRoomEvent,
   deleteBookingEventByCronJob,
   updateSessionTime,
+  updateMultipleSessionTime,
 };
