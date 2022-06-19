@@ -385,7 +385,21 @@ const getAllAvailableDatesBySlots = async (req, res, next) => {
           availableRooms.push(slot);
         }
       });
-    res.send(availableRooms);
+    const filteredAvailableRooms = availableRooms.filter(
+      (room) =>
+        room.slotTimes.filter((slot) =>
+          slot.spots.some(
+            (spot) =>
+              new Date(spot.startTime).getTime() === newStartDate &&
+              new Date(spot.endTime).getTime() === newEndDate
+          )
+        ).length > 0
+    );
+    res.status(200).json({
+      message: "Slots were found successfully",
+      slots: filteredAvailableRooms,
+    });
+    // res.send(availableRooms);
   } catch (error) {
     res.status(400).send({ message: error.message });
   }

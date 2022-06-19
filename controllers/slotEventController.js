@@ -20,7 +20,6 @@ const getSlotEvent = async (req, res, next) => {
 };
 
 const createSlotEvent = async (req, res, next) => {
-  let slotEvents = {};
   const slotEvent = new SlotEvent({
     summary: req.body.summary,
     description: req.body.description,
@@ -30,18 +29,6 @@ const createSlotEvent = async (req, res, next) => {
     userId: req.body.userId,
     timeZone: req.body.timeZone,
   });
-  const slotEvent2 = new SlotEvent({
-    summary: req.body.summary,
-    description: req.body.description,
-    slotId: req.body.slotId,
-    startDate: req.body.startDate,
-    endDate: req.body.endDate,
-    userId: req.body.userId,
-    timeZone: req.body.timeZone,
-  });
-  slotEvents["slotEvent"] = slotEvent;
-  slotEvents["slotEvent2"] = slotEvent2;
-  console.log("slotEvent Object 2 Multiple Slots", slotEvents);
   try {
     const { slotId, startDate, endDate } = req.body;
     const bookDates = {
@@ -169,7 +156,6 @@ const createMultipleSlotEvent = async (req, res, next) => {
       slotEvents[`slotEvent${i + 1}`] = tempSlotEvent;
     }
   }
-  console.log("slotEvents", slotEvents);
   try {
     const { timeZone, startDate, endDate } = req.body;
     const bookDates = {
@@ -192,7 +178,6 @@ const createMultipleSlotEvent = async (req, res, next) => {
     if (slotEvents && Object.keys(slotEvents).length > 0) {
       selectedSlots = await Slot.find({ _id: { $in: slotIds } });
     }
-    console.log("selectedSlots", selectedSlots);
     let isDateTaken = false;
     let isSlotMatch = false;
 
@@ -219,14 +204,8 @@ const createMultipleSlotEvent = async (req, res, next) => {
               new Date(slotTime.date).toDateString() ===
               new Date(bookDates.startDate).toDateString()
             ) {
+              isSlotMatch = false;
               const findSlotTime = slotTime?.spots?.find((spot) => {
-                console.log(
-                  "asdsadasdas",
-                  new Date(spot.startTime),
-                  new Date(bookDates.startDate),
-                  new Date(spot.startTime).getTime() ===
-                    new Date(bookDates.startDate).getTime()
-                );
                 if (
                   new Date(spot.startTime).getTime() ===
                     new Date(bookDates.startDate).getTime() &&
@@ -258,75 +237,82 @@ const createMultipleSlotEvent = async (req, res, next) => {
     }
 
     const asyncFunction = async () => {
-      console.log("faruk123", slotEvents);
+      let multipleSlotEvents = Object.keys(slotEvents).reduce(
+        async (a, key) => {
+          return a.then(async () => {
+            let _result = null;
+            return slotEvents[key]
+              .save()
+              .then((result) => {
+                _result = result;
+                bookDates["eId"] = result._id;
+                bookDates["isBooked"] = false;
+                bookDates["userId"] = result.userId;
 
-      let asd = Object.keys(slotEvents).reduce(async (a, key) => {
-        return a.then(async () => {
-          let _result = null;
-          return slotEvents[key]
-            .save()
-            .then((result) => {
-              _result = result;
-              bookDates["eId"] = result._id;
-              bookDates["isBooked"] = false;
-              bookDates["userId"] = result.userId;
+                return Slot.findOneAndUpdate(
+                  { _id: result.slotId },
+                  {
+                    $push: { bookDates: bookDates },
+                  }
+                );
+              })
+              .then(async (slot) => {
+                const lastSlot = await a;
+                console.log("lastSlot", lastSlot);
+                return {
+                  ...lastSlot,
+                  [key]: {
+                    id: _result.slotId,
+                    message: "Slot and Slot Event updated successfully",
+                    status: "success",
+                    slotEvent: { ..._result?._doc },
+                    slot: slot,
+                  },
+                };
+              });
+          });
 
-              return Slot.findOneAndUpdate(
-                { _id: result.slotId },
-                {
-                  $push: { bookDates: bookDates },
-                }
-              );
-            })
-            .then((slot) => {
-              return {
-                id: _result.slotId,
-                message: "Slot and Slot Event updated successfully",
-                status: "success",
-                slotEvent: { ..._result?._doc },
-                slot: slot,
-              };
-            });
-        });
-
-        // const result = await slotEvents[key].save();
-        // console.log("result12", result);
-        // bookDates["eId"] = result._id;
-        // bookDates["isBooked"] = false;
-        // bookDates["userId"] = result.userId;
-        // const slot = await Slot.findOneAndUpdate(
-        //   { _id: slotId },
-        //   {
-        //     $push: { bookDates: bookDates },
-        //   }
-        // );
-        // console.log("result123", slot);
-        // if (result && slot) {
-        //   results.push({
-        //     message: "Slot and Slot Event updated successfully",
-        //     status: "success",
-        //     slotEvent: { ...result?._doc },
-        //     slot: slot,
-        //   });
-        //   console.log("results1234", results);
-        // }
-      }, Promise.resolve());
-
-      return asd;
+          // const result = await slotEvents[key].save();
+          // console.log("result12", result);
+          // bookDates["eId"] = result._id;
+          // bookDates["isBooked"] = false;
+          // bookDates["userId"] = result.userId;
+          // const slot = await Slot.findOneAndUpdate(
+          //   { _id: slotId },
+          //   {
+          //     $push: { bookDates: bookDates },
+          //   }
+          // );
+          // console.log("result123", slot);
+          // if (result && slot) {
+          //   results.push({
+          //     message: "Slot and Slot Event updated successfully",
+          //     status: "success",
+          //     slotEvent: { ...result?._doc },
+          //     slot: slot,
+          //   });
+          //   console.log("results1234", results);
+          // }
+        },
+        Promise.resolve()
+      );
+      return multipleSlotEvents;
     };
 
     if (slotEvents && Object.keys(slotEvents).length > 0) {
       const slotResults = await asyncFunction();
-      console.log("slotResultsFARUK123", slotResults);
+      console.log("slotResults123", slotResults);
       if (!slotResults || Object.keys(slotResults).length === 0) {
-        console.log("slotResults Error", slotResults);
-        res.status(404).send("Slot not found");
+        res.status(404).json({
+          message: "Slot and Slot Event not updated",
+          status: "failure",
+        });
       } else {
         const sessionTime = new Date(Date.now() + 15 * 60 * 1000);
-        console.log("slotResults", slotResults);
         res.status(200).json({
           ...slotResults,
           sessionTime,
+          status: "success",
         });
         return;
       }
@@ -424,26 +410,55 @@ const updateSessionTime = async (req, res, next) => {
 
 const updateMultipleSessionTime = async (req, res, next) => {
   try {
-    let slotEvents = [];
-    const { userId, eventsList } = req.body;
+    const { eventList } = req.body;
+    console.log("eventList1", eventList, req.body);
     currentTime = Date.now();
-    if (eventsList && eventsList.length > 0) {
-      for (let i = 0; i < eventsList.length; i++) {
-        const slotEvent = await SlotEvent.findOneAndUpdate(
-          { _id: eventsList[i].eId, userId: userId },
-          { updatedAt: currentTime },
-          { new: true }
-        );
-        slotEvents.push({ ...slotEvent });
-        console.log("updated slotEvent", slotEvent, currentTime);
+
+    const asyncFunction = async () => {
+      let multipleSlotEvents = Object.keys(eventList).reduce(async (a, key) => {
+        return a
+          .then(async () => {
+            const slot = eventList[key].slotEvent;
+            const { _id, userId } = slot;
+            console.log("Update Session Time Slot Event", _id, userId);
+            return SlotEvent.findOneAndUpdate(
+              { _id: slot._id, userId: slot.userId },
+              { updatedAt: currentTime },
+              { new: true }
+            );
+          })
+          .then(async (slot) => {
+            const lastSlot = await a;
+            console.log("lastSlot222", lastSlot);
+            return {
+              ...lastSlot,
+              [key]: slot,
+            };
+          });
+      }, Promise.resolve());
+      return multipleSlotEvents;
+    };
+
+    if (eventList && Object.keys(eventList).length > 0) {
+      const updatedEventResults = await asyncFunction();
+      console.log("updatedEventResults", updatedEventResults);
+      if (
+        !updatedEventResults ||
+        Object.keys(updatedEventResults).length === 0
+      ) {
+        res.status(404).json({
+          message: "Slot and Slot Event not updated",
+          status: "failure",
+        });
+      } else {
+        const sessionTime = new Date(Date.now() + 15 * 60 * 1000);
+        res.status(200).json({
+          ...updatedEventResults,
+          sessionTimeUpdated: sessionTime,
+          status: "success",
+        });
       }
     }
-
-    const sessionTime = new Date(currentTime + 15 * 60 * 1000);
-    res.status(200).send({
-      slotEvents: { ...slotEvents },
-      sessionTimeUpdated: sessionTime,
-    });
   } catch (error) {
     res.status(400).send(`Error: ${error}`);
   }
