@@ -295,7 +295,6 @@ const freeBusySlot = async (req, res, next) => {
             );
           });
         });
-
         return day;
       });
 
@@ -353,7 +352,7 @@ const getAllAvailableDatesBySlots = async (req, res, next) => {
       duration: duration,
     });
 
-    console.log("slots", slots);
+    console.log("slots123", slots);
     const newStartDate = new Date(startDate).getTime();
     const newEndDate = new Date(endDate).getTime();
     let availableRooms = [];
@@ -388,12 +387,19 @@ const getAllAvailableDatesBySlots = async (req, res, next) => {
     const filteredAvailableRooms = availableRooms.filter(
       (room) =>
         room.slotTimes.filter((slot) =>
-          slot.spots.some(
-            (spot) =>
+          slot.spots.some((spot) => {
+            console.log("farukasd1", spot);
+            return (
               new Date(spot.startTime).getTime() === newStartDate &&
               new Date(spot.endTime).getTime() === newEndDate
-          )
+            );
+          })
         ).length > 0
+    );
+    console.log(
+      "filteredAvailableRooms",
+      filteredAvailableRooms,
+      availableRooms
     );
     res.status(200).json({
       message: "Slots were found successfully",

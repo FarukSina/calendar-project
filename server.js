@@ -95,7 +95,7 @@ cron.schedule("* * * * *", async () => {
 
   const slotResults = await findAllSlotEvents();
   const filteredSlotResultByDate = slotResults.filter((slotEvent) => {
-    if (currentTime - slotEvent.updatedAt >= 900) {
+    if (currentTime - slotEvent.updatedAt >= 900000) {
       return slotEvent;
     } else {
       return null;

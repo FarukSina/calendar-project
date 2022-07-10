@@ -153,12 +153,12 @@ const getAllRoomsByCalendar = async (req, res, next) => {
 };
 
 const getAllAvailableRoomsByDates = async (req, res, next) => {
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, calendarId } = req.body;
 
   try {
-    const rooms = await Room.find({});
+    const rooms = await Room.find({ calendarId });
 
-    console.log("rooms", rooms);
+    console.log("rooms123", rooms);
     const newStartDate = new Date(startDate).getTime();
     const newEndDate = new Date(endDate).getTime();
     let availableRooms = [];

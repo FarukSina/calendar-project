@@ -10,6 +10,7 @@ const {
   updateSessionTime,
   updateMultipleSessionTime,
   bookTheSlotEvent,
+  bookMultipleSlotEvents,
 } = require("../controllers/slotEventController");
 
 router.route("/getAllSlotEvents").get(getAllSlotEvents);
@@ -20,5 +21,6 @@ router.route("/deleteSlotEvent").post(deleteSlotEvent);
 router.route("/updateSessionTime").post(updateSessionTime);
 router.route("/bookSlotEvent").post(bookTheSlotEvent);
 router.route("/updateMultipleSessionTime").post(updateMultipleSessionTime);
+router.route("/bookMultipleSlotEvents").post(bookMultipleSlotEvents);
 
 module.exports = router;

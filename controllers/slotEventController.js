@@ -513,6 +513,110 @@ const bookTheSlotEvent = async (req, res, next) => {
   }
 };
 
+const bookMultipleSlotEvents = async (req, res, next) => {
+  try {
+    const { eventList, userId } = req.body;
+    let slotAlreadyBooked = {};
+    console.log("eventList", eventList, userId);
+    const asyncFunction = async () => {
+      let multipleSlotEvents = Object.keys(eventList).reduce(async (a, key) => {
+        return a.then(async () => {
+          let _result = null;
+          let slotAlreadyBooked = {};
+
+          return await SlotEvent.findOneAndUpdate(
+            { _id: eventList?.[key]?.slotEvent?._id, userId: userId },
+            { $set: { isBooked: true } }
+          )
+            .then(async (result) => {
+              const slotEvent = await SlotEvent.findOne({
+                _id: eventList?.[key]?.slotEvent?._id,
+                userId: userId,
+              });
+              console.log("slotEvent123", slotEvent, slotEvent.isBooked);
+              if (slotEvent.isBooked) {
+                slotAlreadyBooked = {
+                  ...slotAlreadyBooked,
+                  [key]: {
+                    isBooked: true,
+                    ...slotEvent?._doc,
+                  },
+                };
+                return result;
+              }
+              return await result;
+            })
+            .then((result) => {
+              _result = result;
+              return Slot.findOneAndUpdate(
+                { "bookDates.eId": eventList?.[key]?.slotEvent?._id },
+                {
+                  $set: {
+                    "bookDates.$.isBooked": true,
+                  },
+                },
+                { multi: true }
+              );
+            })
+            .then(async (slot) => {
+              const lastSlod = await a;
+              console.log("lastSlod", lastSlod);
+              return {
+                ...lastSlod,
+                [key]: {
+                  id: _result.slotId,
+                  message: "Slot and Slot Event updated successfully",
+                  status: "success",
+                  slotEvent: { ..._result?._doc },
+                  slot: slot,
+                },
+                slotAlreadyBooked,
+                alreadyBookedSlotsLength:
+                  Object.keys(slotAlreadyBooked)?.length,
+              };
+            });
+        });
+      }, Promise.resolve());
+      return multipleSlotEvents;
+    };
+
+    if (Object.keys(eventList).length === 0) {
+      return res.status(400).send("No events to book");
+    }
+
+    const result = await asyncFunction();
+
+    if (
+      result &&
+      result?.slotAlreadyBooked &&
+      Object.keys(result?.slotAlreadyBooked)?.length ===
+        Object.keys(eventList)?.length
+    ) {
+      console.log("slotAlreadyBooked", slotAlreadyBooked);
+      return res.status(400).json({
+        message: "The Slot is already booked",
+        slotAlreadyBooked: result?.slotAlreadyBooked,
+      });
+    }
+
+    console.log("result", result);
+
+    if (!result || Object.keys(result)?.length === 0) {
+      res.status(404).send("Slot or Event not found");
+    } else {
+      res.status(200).json({
+        message: "Slot and Event booked successfully",
+        status: "success",
+        result,
+      });
+      return;
+    }
+    res.send(result);
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
 module.exports = {
   createSlotEvent,
   createMultipleSlotEvent,
@@ -523,4 +627,5 @@ module.exports = {
   updateSessionTime,
   bookTheSlotEvent,
   updateMultipleSessionTime,
+  bookMultipleSlotEvents,
 };

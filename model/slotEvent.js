@@ -9,6 +9,10 @@ const slotEventSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  personName: {
+    type: String,
+    required: true,
+  },
   slotId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "SlotBasedInventory",

@@ -1,6 +1,5 @@
 const BookingEvent = require("../model/bookingEvent");
 const Room = require("../model/room");
-const SlotEvent = require("../model/slotEvent");
 const getAllBookingEvents = async (req, res) => {
   BookingEvent.find({}, (err, bookingEvents) => {
     if (err) {
@@ -44,9 +43,9 @@ const createBookingEvent = async (req, res, next) => {
     };
     const newStartDate = new Date(bookDates.startDate).getTime();
     const newEndDate = new Date(bookDates.endDate).getTime();
-    const currentTime = new Date().getTime();
+    const currentTime = new Date(new Date().setHours(11, 00, 00)).getTime();
     if (newStartDate < currentTime) {
-      res.status(400).send("Slot can not be before current time");
+      res.status(400).send("Room can not be before current time");
       return;
     }
     if (newStartDate > newEndDate) {
@@ -111,6 +110,188 @@ const createBookingEvent = async (req, res, next) => {
   }
 };
 
+const createMultipleBookingEvent = async (req, res, next) => {
+  const bookingEvents = {};
+  const { quantity, roomIds } = req.body;
+  if (quantity >= 1) {
+    for (let i = 0; i < quantity; i++) {
+      let tempBookingEvent = new BookingEvent({
+        numberOfAttendees: req.body.numberOfAttendees,
+        numberOfAdults: req.body.numberOfAdults,
+        numberOfChildren: req.body.numberOfChildren,
+        summary: req.body.summary,
+        description: req.body.description,
+        roomId: roomIds[i],
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        userId: req.body.userId,
+        timeZone: req.body.timeZone,
+        personName: req.body.userList[`user${i + 1}`],
+      });
+      bookingEvents[`roomEvent${i + 1}`] = tempBookingEvent;
+    }
+  }
+  try {
+    const { timeZone, startDate, endDate } = req.body;
+    const bookDates = {
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      timeZone: timeZone,
+    };
+    const newStartDate = new Date(bookDates.startDate).getTime();
+    const newEndDate = new Date(bookDates.endDate).getTime();
+    const currentTime = new Date(new Date().setHours(11, 00, 00)).getTime();
+    if (newStartDate < currentTime) {
+      res.status(400).send("Room can not be before current time");
+      return;
+    }
+    if (newStartDate > newEndDate) {
+      res.status(400).send("Start date should be less than end date");
+      return;
+    }
+    let selectedRooms = {};
+    if (bookingEvents && Object.keys(bookingEvents).length > 0) {
+      selectedRooms = await Room.find({ _id: { $in: roomIds } });
+    }
+    let isDateTaken = false;
+
+    if (selectedRooms && Object.keys(selectedRooms).length > 0) {
+      selectedRooms.forEach((room) => {
+        room &&
+          room?.bookDates?.length > 0 &&
+          room?.bookDates?.some((bookDate) => {
+            const selectedStartDate = new Date(bookDate.startDate).getTime();
+            const selectedEndDate = new Date(bookDate.endDate).getTime();
+            if (
+              selectedStartDate === newStartDate &&
+              selectedEndDate === newStartDate
+            ) {
+              console.log("dates are taken");
+              isDateTaken = true;
+              return;
+            }
+          });
+        // if (room) {
+        //   room.roomTimes.find((roomTime) => {
+        //     if (
+        //       new Date(roomTime.date).toDateString() ===
+        //       new Date(bookDates.startDate).toDateString()
+        //     ) {
+        //       isRoomMatch = false;
+        //       const findRoomTime = roomTime?.rooms?.find((room) => {
+        //         if (
+        //           new Date(room.startTime).getTime() ===
+        //             new Date(bookDates.startDate).getTime() &&
+        //           new Date(room.endTime).getTime() ===
+        //             new Date(bookDates.endDate).getTime()
+        //         ) {
+        //           return room;
+        //         }
+        //       });
+        //       console.log("findRoomTime", findRoomTime);
+        //       if (findRoomTime) {
+        //         isRoomMatch = true;
+        //         return;
+        //       }
+        //     }
+        //   });
+        // }
+      });
+    }
+
+    if (isDateTaken) {
+      res.status(400).send("Dates are taken");
+      return;
+    }
+
+    const asyncFunction = async () => {
+      let multipleBookingEvents = Object.keys(bookingEvents).reduce(
+        async (a, key) => {
+          return a.then(async () => {
+            let _result = null;
+            return bookingEvents[key]
+              .save()
+              .then((result) => {
+                _result = result;
+                bookDates["eId"] = result._id;
+                bookDates["isBooked"] = false;
+                bookDates["userId"] = result.userId;
+
+                return Room.findOneAndUpdate(
+                  { _id: result.roomId },
+                  {
+                    $push: { bookDates: bookDates },
+                  }
+                );
+              })
+              .then(async (room) => {
+                const lastRoom = await a;
+                console.log("lastRoom", lastRoom);
+                return {
+                  ...lastRoom,
+                  [key]: {
+                    id: _result.roomId,
+                    message: "Room and Room Event updated successfully",
+                    status: "success",
+                    roomEvent: { ..._result?._doc },
+                    room: room,
+                  },
+                };
+              });
+          });
+
+          // const result = await bookingEvents[key].save();
+          // console.log("result12", result);
+          // bookDates["eId"] = result._id;
+          // bookDates["isBooked"] = false;
+          // bookDates["userId"] = result.userId;
+          // const room = await Room.findOneAndUpdate(
+          //   { _id: roomId },
+          //   {
+          //     $push: { bookDates: bookDates },
+          //   }
+          // );
+          // console.log("result123", room);
+          // if (result && room) {
+          //   results.push({
+          //     message: "Room and Room Event updated successfully",
+          //     status: "success",
+          //     roomEvent: { ...result?._doc },
+          //     room: room,
+          //   });
+          //   console.log("results1234", results);
+          // }
+        },
+        Promise.resolve()
+      );
+      return multipleBookingEvents;
+    };
+
+    if (bookingEvents && Object.keys(bookingEvents).length > 0) {
+      const roomResults = await asyncFunction();
+      console.log("roomResults123", roomResults);
+      if (!roomResults || Object.keys(roomResults).length === 0) {
+        res.status(404).json({
+          message: "Room and Room Event not updated",
+          status: "failure",
+        });
+      } else {
+        const sessionTime = new Date(Date.now() + 15 * 60 * 1000);
+        res.status(200).json({
+          ...roomResults,
+          sessionTime,
+          status: "success",
+        });
+        return;
+      }
+    }
+  } catch (error) {
+    res.status(400).json({
+      error: error.message,
+    });
+  }
+};
+
 const bookTheRoomEvent = async (req, res, next) => {
   try {
     const { eId, userId } = req.body;
@@ -152,6 +333,114 @@ const bookTheRoomEvent = async (req, res, next) => {
         status: "success",
         room: roomEvent,
         event: bookEvent,
+      });
+      return;
+    }
+    res.send(result);
+  } catch (error) {
+    res.status(400).send(`Error: ${error}`);
+  }
+};
+
+const bookMultipleRoomEvents = async (req, res, next) => {
+  try {
+    const { eventList, userId } = req.body;
+    let roomAlreadyBooked = {};
+    console.log("eventList", eventList, userId);
+    const asyncFunction = async () => {
+      let multipleBookingEvents = Object.keys(eventList).reduce(
+        async (a, key) => {
+          return a.then(async () => {
+            let _result = null;
+            let roomAlreadyBooked = {};
+
+            return await BookingEvent.findOneAndUpdate(
+              { _id: eventList?.[key]?.roomEvent?._id, userId: userId },
+              { $set: { isBooked: true } }
+            )
+              .then(async (result) => {
+                const bookingEvent = await BookingEvent.findOne({
+                  _id: eventList?.[key]?.roomEvent?._id,
+                  userId: userId,
+                });
+                console.log(
+                  "bookingEvent123",
+                  bookingEvent,
+                  bookingEvent.isBooked
+                );
+                if (bookingEvent.isBooked) {
+                  roomAlreadyBooked[key] = {
+                    isBooked: true,
+                    roomEvent: { ...bookingEvent?._doc },
+                  };
+                  return result;
+                }
+                return await result;
+              })
+              .then((result) => {
+                _result = result;
+                return Room.updateOne(
+                  { "bookDates.eId": eventList?.[key]?.roomEvent?._id },
+                  {
+                    $set: {
+                      "bookDates.$.isBooked": true,
+                    },
+                  },
+                  { multi: true }
+                );
+              })
+              .then(async (room) => {
+                const lastRoom = await a;
+                console.log("lastRoom", lastRoom);
+                return {
+                  ...lastRoom,
+                  [key]: {
+                    id: _result.roomId,
+                    message: "Room and Room Event updated successfully",
+                    status: "success",
+                    roomEvent: { ..._result?._doc },
+                    room: room,
+                  },
+                  roomAlreadyBooked,
+                  alreadyBookedRoomsLength:
+                    Object.keys(roomAlreadyBooked)?.length,
+                };
+              });
+          });
+        },
+        Promise.resolve()
+      );
+      return multipleBookingEvents;
+    };
+
+    if (Object.keys(eventList).length === 0) {
+      return res.status(400).send("No events to book");
+    }
+
+    const result = await asyncFunction();
+
+    if (
+      result &&
+      result?.roomAlreadyBooked &&
+      Object.keys(result?.roomAlreadyBooked)?.length ===
+        Object.keys(eventList)?.length
+    ) {
+      console.log("roomAlreadyBooked", roomAlreadyBooked);
+      return res.status(400).json({
+        message: "The Room is already booked",
+        roomAlreadyBooked: result?.roomAlreadyBooked,
+      });
+    }
+
+    console.log("result", result);
+
+    if (!result || Object.keys(result)?.length === 0) {
+      res.status(404).send("Room or Event not found");
+    } else {
+      res.status(200).json({
+        message: "Room and Event booked successfully",
+        status: "success",
+        result,
       });
       return;
     }
@@ -295,26 +584,56 @@ const updateSessionTime = async (req, res, next) => {
 
 const updateMultipleSessionTime = async (req, res, next) => {
   try {
-    let bookingEvents = [];
-    const { eId, userId, roomId, eventsList } = req.body;
+    const { eventList } = req.body;
+    console.log("eventList1", eventList, req.body);
     currentTime = Date.now();
-    if (eventsList && eventsList.length > 0) {
-      for (let i = 0; i < eventsList.length; i++) {
-        const bookingEvent = await BookingEvent.findOneAndUpdate(
-          { _id: eventsList[i].eId, userId: userId },
-          { updatedAt: currentTime },
-          { new: true }
-        );
-        bookingEvents.push({ ...bookingEvent });
-        console.log("updated bookingEvent", bookingEvent, currentTime);
+
+    const asyncFunction = async () => {
+      let multipleRoomEvents = Object.keys(eventList).reduce(async (a, key) => {
+        return a
+          .then(async () => {
+            const bookedEvent = eventList[key].roomEvent;
+            console.log("bookedEvent", bookedEvent);
+            const { _id, userId } = bookedEvent;
+            console.log("Update Session Time Room Event", _id, userId);
+            return await BookingEvent.findOneAndUpdate(
+              { _id: bookedEvent._id, userId: bookedEvent.userId },
+              { updatedAt: currentTime },
+              { new: true, safe: true, multi: false }
+            );
+          })
+          .then(async (bookedEvent) => {
+            const lastBookingEvent = await a;
+            console.log("lastBookingEvent222", lastBookingEvent);
+            return {
+              ...lastBookingEvent,
+              [key]: bookedEvent,
+            };
+          });
+      }, Promise.resolve());
+      return multipleRoomEvents;
+    };
+
+    if (eventList && Object.keys(eventList).length > 0) {
+      const updatedEventResults = await asyncFunction();
+      console.log("updatedEventResults", updatedEventResults);
+      if (
+        !updatedEventResults ||
+        Object.keys(updatedEventResults).length === 0
+      ) {
+        res.status(404).json({
+          message: "Room Event not updated",
+          status: "failure",
+        });
+      } else {
+        const sessionTime = new Date(Date.now() + 15 * 60 * 1000);
+        res.status(200).json({
+          ...updatedEventResults,
+          sessionTimeUpdated: sessionTime,
+          status: "success",
+        });
       }
     }
-
-    const sessionTime = new Date(currentTime + 15 * 60 * 1000);
-    res.status(200).send({
-      bookingEvents: { ...bookingEvents },
-      sessionTimeUpdated: sessionTime,
-    });
   } catch (error) {
     res.status(400).send(`Error: ${error}`);
   }
@@ -324,6 +643,7 @@ module.exports = {
   getAllBookingEvents,
   getBookingEvent,
   createBookingEvent,
+  createMultipleBookingEvent,
   updateBookingEvent,
   deleteBookingEvent,
   getBookingEventsByUserId,
@@ -333,4 +653,5 @@ module.exports = {
   deleteBookingEventByCronJob,
   updateSessionTime,
   updateMultipleSessionTime,
+  bookMultipleRoomEvents,
 };
