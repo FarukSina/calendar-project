@@ -28,6 +28,8 @@ const createBookingEvent = async (req, res, next) => {
     numberOfAttendees: req.body.numberOfAttendees,
     numberOfAdults: req.body.numberOfAdults,
     numberOfChildren: req.body.numberOfChildren,
+    specialRequests: req.body.specialRequests,
+    ageOfChildren: req.body.ageOfChildren,
     roomId: req.body.roomId,
     startDate: req.body.startDate,
     endDate: req.body.endDate,
@@ -81,8 +83,6 @@ const createBookingEvent = async (req, res, next) => {
     bookDates["eId"] = result._id;
     bookDates["isBooked"] = false;
     bookDates["userId"] = result.userId;
-
-    // check if the dates are taken
 
     const room = await Room.findOneAndUpdate(
       { _id: roomId },

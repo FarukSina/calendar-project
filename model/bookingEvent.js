@@ -21,6 +21,33 @@ const bookingEventSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  specialRequests: {
+    type: String,
+    required: true,
+    maxlength: 250,
+  },
+  ageOfChildren: [
+    {
+      children1: {
+        type: String,
+      },
+      children2: {
+        type: String,
+      },
+      children3: {
+        type: String,
+      },
+      children4: {
+        type: String,
+      },
+      children5: {
+        type: String,
+      },
+      children6: {
+        type: String,
+      },
+    },
+  ],
   roomId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Room",
